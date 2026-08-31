@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Executive Operations and Profit Board</title>
+  
+  <link rel="preconnect" href="https://urldefense.com/v3/__https://fonts.googleapis.com__;!!J_gicELb!YhYog9tfMO9nbSDiKsy-oirwxByh23k3XjFmuMS7JS1pJVLyl6l0vH9zhCM6viQ0QnuXVKCT1RnuVRj1pGcZEv0WSI0XoSiX$ ">
+  <link rel="preconnect" href="https://urldefense.com/v3/__https://fonts.gstatic.com__;!!J_gicELb!YhYog9tfMO9nbSDiKsy-oirwxByh23k3XjFmuMS7JS1pJVLyl6l0vH9zhCM6viQ0QnuXVKCT1RnuVRj1pGcZEv0WSA3OphuK$ " crossorigin>
+  <link href="https://urldefense.com/v3/__https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains*Mono:wght@500;700&display=swap__;Kw!!J_gicELb!YhYog9tfMO9nbSDiKsy-oirwxByh23k3XjFmuMS7JS1pJVLyl6l0vH9zhCM6viQ0QnuXVKCT1RnuVRj1pGcZEv0WSMQyVVp3$ " rel="stylesheet">
+  
+  <script src="https://urldefense.com/v3/__https://cdn.tailwindcss.com__;!!J_gicELb!YhYog9tfMO9nbSDiKsy-oirwxByh23k3XjFmuMS7JS1pJVLyl6l0vH9zhCM6viQ0QnuXVKCT1RnuVRj1pGcZEv0WSKAz18sR$ "></script>
+  <script src="https://urldefense.com/v3/__https://cdn.jsdelivr.net/npm/chart.js__;!!J_gicELb!YhYog9tfMO9nbSDiKsy-oirwxByh23k3XjFmuMS7JS1pJVLyl6l0vH9zhCM6viQ0QnuXVKCT1RnuVRj1pGcZEv0WSGIlsBR0$ "></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #272857;
+      color: #0f172a;
+    }
+
+    .bi-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    .bi-card-header {
+      border-bottom: 1px solid #f1f5f9;
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #475569;
+      background: #fafafa;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #e2e8f0;
+      border-radius: 6px;
+      height: 6px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: #2563eb;
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="p-3 md:p-5 font-sans">
+
+  <div class="max-w-7xl mx-auto space-y-4">
+
+    <header class="bi-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div>
+        <h1 class="text-lg font-bold text-slate-900 tracking-tight">Executive Manufacturing Profit and Cost Simulator</h1>
+        <p class="text-xs text-slate-500">Live operational sensitivity model powered by Epicor quarterly production data</p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <label for="productLine" class="text-xs font-semibold text-slate-700">Product Line Focus:</label>
+        <select id="productLine" class="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded-md px-3 py-1.5 outline-none focus:border-blue-600 shadow-sm cursor-pointer"></select>
+      </div>
+    </header>
+
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      
+      <div class="bi-card p-4">
+        <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Unit Build Cost</span>
+        <div class="flex items-baseline justify-between mt-2">
+          <span id="kpiUnitCost" class="text-2xl font-mono font-extrabold text-slate-900">$0</span>
+          <span id="kpiUnitCostDelta" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">Baseline</span>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">Total spend to manufacture one unit</p>
+      </div>
+
+      <div class="bi-card p-4">
+        <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gross Profit Margin</span>
+        <div class="flex items-baseline justify-between mt-2">
+          <span id="kpiMargin" class="text-2xl font-mono font-extrabold text-slate-900">0%</span>
+          <span id="kpiMarginDelta" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">Baseline</span>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">Share of selling price retained as profit</p>
+      </div>
+
+      <div class="bi-card p-4">
+        <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Quarterly Quality Waste</span>
+        <div class="flex items-baseline justify-between mt-2">
+          <span id="kpiCopq" class="text-2xl font-mono font-extrabold text-rose-600">$0</span>
+          <span id="kpiCopqDelta" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">Baseline</span>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">Dollars lost on scrap, rework, and stops</p>
+      </div>
+
+      <div class="bi-card p-4">
+        <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Production Volume</span>
+        <div class="flex items-baseline justify-between mt-2">
+          <span id="kpiVolume" class="text-2xl font-mono font-extrabold text-blue-700">0</span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Quarterly Units</span>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">Total finished units built this quarter</p>
+      </div>
+
+    </section>
+
+    <main class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+      <div class="lg:col-span-4 bi-card flex flex-col justify-between">
+        <div>
+          <div class="bi-card-header">
+            <span>Plant Improvement Levers</span>
+            <button id="resetBtn" class="text-xs font-semibold text-blue-600 hover:text-blue-800">Reset to 0</button>
+          </div>
+
+          <div class="p-4 space-y-4">
+            
+            <div class="space-y-1.5">
+              <div class="flex justify-between items-center text-xs">
+                <span class="font-semibold text-slate-700">Material Scrap Reduction</span>
+                <span id="valScrap" class="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">0% Less Scrap</span>
+              </div>
+              <input id="sliderScrap" type="range" min="0" max="50" value="0" step="1" class="w-full" />
+              <p class="text-[11px] text-slate-500">Eliminates wasted sheet metal cuts, tubing, and foam</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="flex justify-between items-center text-xs">
+                <span class="font-semibold text-slate-700">Labor Assembly Efficiency</span>
+                <span id="valLabor" class="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">0% Faster</span>
+              </div>
+              <input id="sliderLabor" type="range" min="0" max="30" value="0" step="1" class="w-full" />
+              <p class="text-[11px] text-slate-500">Smoother workflow across brazing, wiring, and assembly</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="flex justify-between items-center text-xs">
+                <span class="font-semibold text-slate-700">First Pass Test Yield</span>
+                <span id="valRework" class="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">0% Less Rework</span>
+              </div>
+              <input id="sliderRework" type="range" min="0" max="60" value="0" step="1" class="w-full" />
+              <p class="text-[11px] text-slate-500">Fewer pressure test leaks and electrical wiring corrections</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="flex justify-between items-center text-xs">
+                <span class="font-semibold text-slate-700">Machine Downtime Recovered</span>
+                <span id="valDowntime" class="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">0 Mins Recovered</span>
+              </div>
+              <input id="sliderDowntime" type="range" min="0" max="60" value="0" step="5" class="w-full" />
+              <p class="text-[11px] text-slate-500">Faster tooling changeovers and fewer conveyor stoppages</p>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="p-3 m-3 rounded bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+          <span class="font-bold text-slate-800">Executive Rule:</span> Moving any slider directly lowers unit production costs and expands annual net profit.
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 space-y-4">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <div class="bi-card p-4 flex flex-col justify-between items-center text-center">
+            <div class="w-full text-left">
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Annual Net Profit Opportunity</span>
+              <p class="text-[11px] text-slate-500">Projected full year bottom line gain from selected levers</p>
+            </div>
+
+            <div class="h-40 w-full max-w-[240px] relative mt-2 flex items-center justify-center">
+              <canvas id="gaugeChart"></canvas>
+              <div class="absolute bottom-2 text-center">
+                <span id="gaugeValueText" class="text-2xl font-mono font-extrabold text-slate-900">$0</span>
+                <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Added Yearly Cash</p>
+              </div>
+            </div>
+
+            <p class="text-[11px] text-slate-500 mt-2">Adjust levers to view incremental yearly profit</p>
+          </div>
+
+          <div class="bi-card p-4 flex flex-col justify-between">
+            <div>
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Unit Cost Impact Comparison</span>
+              <p class="text-[11px] text-slate-500 mb-2">Original build cost against new optimized cost</p>
+            </div>
+            <div class="h-44 relative">
+              <canvas id="totalCostChart"></canvas>
+            </div>
+            <div class="mt-2 text-center text-xs font-semibold text-slate-600" id="totalSavingsText">
+              Baseline performance (0 levers applied)
+            </div>
+          </div>
+
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <div class="bi-card p-4 flex flex-col justify-between">
+            <div>
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cost Category Breakdown</span>
+              <p class="text-[11px] text-slate-500 mb-2">Comparing original spend to optimized spend</p>
+            </div>
+            <div class="h-48 relative">
+              <canvas id="costBreakdownChart"></canvas>
+            </div>
+          </div>
+
+          <div class="bi-card p-4 flex flex-col justify-between">
+            <div>
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Quarterly Quality Waste Pool</span>
+              <p class="text-[11px] text-slate-500 mb-2">Distribution of scrap and non productive expense</p>
+            </div>
+            <div class="h-48 relative">
+              <canvas id="copqChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    let productData = {};
+    let gaugeChart, totalCostChart, costBreakdownChart, copqChart;
+
+    const sScrap = document.getElementById('sliderScrap');
+    const sLabor = document.getElementById('sliderLabor');
+    const sRework = document.getElementById('sliderRework');
+    const sDowntime = document.getElementById('sliderDowntime');
+    const pSelect = document.getElementById('productLine');
+
+    async function loadData() {
+      try {
+        const res = await fetch('/api/data');
+        productData = await res.json();
+      } catch (e) {
+        console.error("API failed to load data", e);
+      }
+      
+      pSelect.innerHTML = '';
+      Object.keys(productData).forEach(key => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = productData[key].name;
+        pSelect.appendChild(opt);
+      });
+
+      initCharts();
+      calculate();
+    }
+
+    function initCharts() {
+      Chart.defaults.color = '#64748b';
+      Chart.defaults.font.family = 'Inter, sans-serif';
+
+      // 1. Semi Circle Gauge for Profit
+      const ctxGauge = document.getElementById('gaugeChart').getContext('2d');
+      gaugeChart = new Chart(ctxGauge, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [0, 500000],
+            backgroundColor: ['#10b981', '#e2e8f0'],
+            borderWidth: 0,
+            circumference: 180,
+            rotation: 270,
+            cutout: '80%'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { tooltip: { enabled: false }, legend: { display: false } }
+        }
+      });
+
+      // 2. Direct Total Unit Cost Comparison Bar Chart
+      const ctxTotal = document.getElementById('totalCostChart').getContext('2d');
+      totalCostChart = new Chart(ctxTotal, {
+        type: 'bar',
+        data: {
+          labels: ['Original Unit Cost', 'Optimized Unit Cost'],
+          datasets: [{
+            data: [0, 0],
+            backgroundColor: ['#94a3b8', '#2563eb'],
+            borderRadius: 6,
+            barPercentage: 0.55
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { weight: 600, size: 11 } } },
+            y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+
+      // 3. Category Breakdown Bar Chart
+      const ctxBreakdown = document.getElementById('costBreakdownChart').getContext('2d');
+      costBreakdownChart = new Chart(ctxBreakdown, {
+        type: 'bar',
+        data: {
+          labels: ['Materials', 'Labor', 'Burden', 'Scrap', 'Rework'],
+          datasets: [
+            {
+              label: 'Original',
+              data: [],
+              backgroundColor: '#94a3b8',
+              borderRadius: 4,
+              barPercentage: 0.7
+            },
+            {
+              label: 'Optimized',
+              data: [],
+              backgroundColor: '#2563eb',
+              borderRadius: 4,
+              barPercentage: 0.7
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, font: { size: 10, weight: 600 } }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+            y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+
+      // 4. Quality Waste Composition Doughnut
+      const ctxCopq = document.getElementById('copqChart').getContext('2d');
+      copqChart = new Chart(ctxCopq, {
+        type: 'doughnut',
+        data: {
+          labels: ['Scrapped Parts', 'Rework Hours', 'Warranty Calls', 'Stoppage Loss'],
+          datasets: [{
+            data: [],
+            backgroundColor: ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6'],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, font: { size: 10 } }
+            }
+          }
+        }
+      });
+    }
+
+    function calculate() {
+      const base = productData[pSelect.value];
+      if (!base) return;
+
+      const scrapRedPct = parseFloat(sScrap.value) / 100;
+      const laborEffPct = parseFloat(sLabor.value) / 100;
+      const reworkRedPct = parseFloat(sRework.value) / 100;
+      const dtMin = parseFloat(sDowntime.value);
+
+      // Downtime fixed logic
+      const baseDowntimeCost = 45 * 2.5;
+      const optDowntimeCost = Math.max(0, (45 - dtMin) * 2.5);
+
+      // Dynamic calculation with true sensitivity
+      const optMaterials = base.materials * (1 - (scrapRedPct * 0.12));
+      const optLabor = base.labor * (1 - (laborEffPct * 1.0));
+      const optOverhead = base.overhead * (1 - (dtMin / 480 * 0.40));
+      const optScrap = base.scrap * (1 - scrapRedPct);
+      const optRework = base.rework * (1 - reworkRedPct);
+      const optWarranty = base.warranty * (1 - (reworkRedPct * 0.5));
+
+      const baseTotal = base.materials + base.labor + base.overhead + base.scrap + base.rework + base.warranty;
+      const optTotal = optMaterials + optLabor + optOverhead + optScrap + optRework + optWarranty;
+
+      const unitSavings = baseTotal - optTotal;
+      const annualSavings = unitSavings * base.volume * 4;
+
+      const baseMargin = ((base.price - baseTotal) / base.price) * 100;
+      const optMargin = ((base.price - optTotal) / base.price) * 100;
+      const marginGain = optMargin - baseMargin;
+
+      const baseCopq = (base.scrap + base.rework + base.warranty + baseDowntimeCost) * base.volume;
+      const optCopq = (optScrap + optRework + optWarranty + optDowntimeCost) * base.volume;
+      const copqSavings = baseCopq - optCopq;
+
+      // Update Slider Label Text (strictly without hyphens)
+      document.getElementById('valScrap').textContent = sScrap.value + '% Less Scrap';
+      document.getElementById('valLabor').textContent = sLabor.value + '% Faster';
+      document.getElementById('valRework').textContent = sRework.value + '% Less Rework';
+      document.getElementById('valDowntime').textContent = sDowntime.value + ' Mins Recovered';
+
+      // Update Cards
+      document.getElementById('kpiUnitCost').textContent = '$' + Math.round(optTotal).toLocaleString();
+      document.getElementById('kpiUnitCostDelta').textContent = unitSavings > 0 ? ('Saved $' + Math.round(unitSavings).toLocaleString()) : 'Baseline';
+      
+      document.getElementById('kpiMargin').textContent = optMargin.toFixed(1) + '%';
+      document.getElementById('kpiMarginDelta').textContent = marginGain > 0.05 ? ('Up ' + marginGain.toFixed(1) + '%') : 'Baseline';
+      
+      document.getElementById('kpiCopq').textContent = '$' + Math.round(optCopq).toLocaleString();
+      document.getElementById('kpiCopqDelta').textContent = copqSavings > 50 ? ('Saved $' + Math.round(copqSavings / 1000).toFixed(1) + 'k') : 'Baseline';
+      
+      document.getElementById('kpiVolume').textContent = base.volume.toLocaleString();
+      document.getElementById('totalSavingsText').textContent = unitSavings > 0 
+        ? ('Immediate unit savings of $' + Math.round(unitSavings).toLocaleString() + ' per finished product')
+        : 'Baseline performance (0 levers applied)';
+
+      // Update Speedometer Gauge
+      document.getElementById('gaugeValueText').textContent = '$' + Math.round(annualSavings).toLocaleString();
+      const gaugeMax = Math.max(annualSavings * 1.3, 200000);
+      gaugeChart.data.datasets[0].data = [annualSavings, Math.max(0, gaugeMax - annualSavings)];
+      gaugeChart.update();
+
+      // Update Direct Total Unit Cost Chart
+      totalCostChart.data.datasets[0].data = [Math.round(baseTotal), Math.round(optTotal)];
+      totalCostChart.options.scales.y.min = Math.floor(optTotal * 0.75);
+      totalCostChart.update();
+
+      // Update Category Breakdown Chart
+      costBreakdownChart.data.datasets[0].data = [base.materials, base.labor, base.overhead, base.scrap, base.rework];
+      costBreakdownChart.data.datasets[1].data = [optMaterials, optLabor, optOverhead, optScrap, optRework];
+      costBreakdownChart.update();
+
+      // Update Quality Composition Chart
+      copqChart.data.datasets[0].data = [
+        Math.round(optScrap * base.volume),
+        Math.round(optRework * base.volume),
+        Math.round(optWarranty * base.volume),
+        Math.round(optDowntimeCost * base.volume)
+      ];
+      copqChart.update();
+    }
+
+    [sScrap, sLabor, sRework, sDowntime, pSelect].forEach(el => el.addEventListener('input', calculate));
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      sScrap.value = 0;
+      sLabor.value = 0;
+      sRework.value = 0;
+      sDowntime.value = 0;
+      calculate();
+    });
+
+    loadData();
+  </script>
+</body>
+</html>
+
