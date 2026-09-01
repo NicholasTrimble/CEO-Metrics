@@ -9,18 +9,54 @@ DATA_PATH = os.path.join(BASE_DIR, "data", "Query Test (1).xlsx")
 
 # Executive clean names for your equipment classes 
 CLASS_NAMES = {
-    "1370": "Energy Recovery Wheel Systems",
-    "1500": "Water Wash Air Systems",
-    "4160": "Wheel Cassette and Hub Assemblies",
-    "ZZPK": "Remote Panels and Hood Assemblies",
-    "4080": "Subassembly Panels and Structural Units",
-    "ZZDR": "Specialty Door Assemblies",
-    "1400": "Ductwork and Frame Assemblies",
-    "4100": "Latch Plates and Aluminum Components",
-    "4490": "Wheel Spokes and Aluminum Hubs",
-    "1306": "Replacement Parts and Repair Units",
-    "SPPRT": "Replacement Parts and Repair Units"
+    # Finished Systems & Units
+    "1300": "DWP Systems - EP Units",
+    "1301": "DWP VS Series Units",
+    "1305": "Systems Service & Field Work",
+    "1306": "Replacement Parts & Repair Units",
+    "1370": "DWP Systems - FV Units",
+    "1400": "Chilled Beam Systems",
+    "1500": "DWP Energy Recovery Wheels",
+    "1510": "DWP Wheel TE Units",
+    "1520": "DWP Wheel TS Units",
+    "1540": "DWP Wheel FV Units",
+
+    # Manufactured Assemblies & Subcomponents
+    "4020": "Manufactured Parts (SP-700)",
+    "4040": "Manufactured Cabinet Assemblies",
+    "4050": "Manufactured Door Assemblies",
+    "4080": "Manufactured Electrical Cabinets",
+    "4100": "Manufactured FV Components",
+    "4110": "Manufactured Hood Assemblies",
+    "4120": "Manufactured Miscellaneous Parts",
+    "4140": "Manufactured Shafts",
+    "4160": "Manufactured Wheel Cassettes",
+    "4170": "Manufactured Wheels",
+
+    # Purchased Parts & Raw Components
+    "4200": "Purchased Adhesives & Sealants",
+    "4230": "Purchased Bearings",
+    "4250": "Purchased Drive Belts",
+    "4270": "Purchased Cabinet Components",
+    "4273": "Purchased Coils",
+    "4275": "Purchased Compressors",
+    "4277": "Purchased Dampers & Actuators",
+    "4280": "Purchased Doors & Hardware",
+    "4310": "Purchased Electrical (ELCAB)",
+    "4320": "Purchased Extrusions",
+    "4330": "Purchased Blower Fans",
+    "4340": "Purchased Air Filters",
+    "4390": "Purchased Hardware & Misc.",
+    "4400": "Purchased Electric Motors",
+    "4470": "Purchased Sheaves & Pulleys",
+    "4490": "Purchased Wheels & Rotors",
+
+    # Packaging & Special
+    "ZZPK": "Packing List & Shipped Loose Kits",
+    "ZZDR": "Specialty Door Units",
+    "ZZOB": "Obsolete Part Assemblies"
 }
+
 
 # 100% Real Audited Unit Costs from JobAsmbl Query Analysis 
 AUDITED_PRODUCT_COSTS = {
