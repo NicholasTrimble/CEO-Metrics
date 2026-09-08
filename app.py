@@ -28,8 +28,8 @@ def get_data():
 
     # 1. DEDUPLICATE INVOICED SALES
     inv_cols = [
-        'Invoice', 'Part', 'Quantity', 
-        'Customer Unit Price', 'Customer Ext. Price', 
+        'Invoice', 'Part', 'Quantity',
+        'Customer Unit Price', 'Customer Ext. Price',
         'ClassID', 'Group', 'Description'
     ]
     present_inv_cols = [c for c in inv_cols if c in df.columns]
@@ -38,80 +38,143 @@ def get_data():
     df_inv = df_inv[(df_inv['Quantity'] > 0) & (df_inv['Customer Ext. Price'] > 0)].copy()
     df_inv['Quantity'] = pd.to_numeric(df_inv['Quantity'], errors='coerce').fillna(0)
     df_inv['Customer Ext. Price'] = pd.to_numeric(df_inv['Customer Ext. Price'], errors='coerce').fillna(0)
+    df_inv['Part'] = df_inv['Part'].astype(str).str.strip()
 
-    # 2. DEDUPLICATE JOBS & ELIMINATE ZERO-COST ANOMALIES
+    # 2. DEDUPLICATE CLOSED JOBS & SCOPE DATE FILTER TO JOBS ONLY
     job_part_col = 'Part.1' if 'Part.1' in df.columns else 'Part'
+
     job_cols = [
-        'Job', job_part_col, 'Completed Qty',
-        'This Level Actual Material Cost', 'Lower Level Actual Material Cost',
-        'This Level Actual Labor Cost', 'Lower Level Actual Labor Cost',
-        'This Level Actual Burden Cost', 'Lower Level Actual Burden Cost',
-        'This Level Actual Material Burden Cost'
+        'Job',
+        job_part_col,
+        'Completion Date',
+        'Completed Qty',
+        'This Level Actual Material Cost',
+        'Lower Level Actual Material Cost',
+        'This Level Actual Labor Cost',
+        'Lower Level Actual Labor Cost',
+        'This Level Actual Burden Cost',
+        'Lower Level Actual Burden Cost',
+        'This Level Actual Material Burden Cost',
+        'This Level Actual Subcontract Cost',
+        'Lower Level Actual Subcontract Cost'
     ]
     present_job_cols = [c for c in job_cols if c in df.columns]
+
+    # Drop duplicate clones caused by the BAQ join before aggregating
     df_jobs = df[present_job_cols].drop_duplicates(subset=['Job']).copy()
 
+    # Filter to jobs completed in trailing 365 days
+    if 'Completion Date' in df_jobs.columns:
+        df_jobs['CompDate'] = pd.to_datetime(df_jobs['Completion Date'], errors='coerce')
+        cutoff_date = pd.Timestamp.now() - pd.Timedelta(days=365)
+        df_jobs = df_jobs[df_jobs['CompDate'] >= cutoff_date].copy()
+
     for c in present_job_cols:
-        if c not in ['Job', job_part_col]:
+        if c not in ['Job', job_part_col, 'Completion Date']:
             df_jobs[c] = pd.to_numeric(df_jobs[c], errors='coerce').fillna(0)
 
     df_jobs['Job_Mat'] = (
-        df_jobs.get('This Level Actual Material Cost', 0) +
-        df_jobs.get('Lower Level Actual Material Cost', 0) +
-        df_jobs.get('This Level Actual Material Burden Cost', 0)
+        df_jobs.get('This Level Actual Material Cost', 0)
+        + df_jobs.get('Lower Level Actual Material Cost', 0)
+        + df_jobs.get('This Level Actual Material Burden Cost', 0)
     )
+
+    df_jobs['Job_Sub'] = (
+        df_jobs.get('This Level Actual Subcontract Cost', 0)
+        + df_jobs.get('Lower Level Actual Subcontract Cost', 0)
+    )
+
     df_jobs['Job_Lab'] = (
-        df_jobs.get('This Level Actual Labor Cost', 0) +
-        df_jobs.get('Lower Level Actual Labor Cost', 0)
+        df_jobs.get('This Level Actual Labor Cost', 0)
+        + df_jobs.get('Lower Level Actual Labor Cost', 0)
     )
+
     df_jobs['Job_Bur'] = (
-        df_jobs.get('This Level Actual Burden Cost', 0) +
-        df_jobs.get('Lower Level Actual Burden Cost', 0)
+        df_jobs.get('This Level Actual Burden Cost', 0)
+        + df_jobs.get('Lower Level Actual Burden Cost', 0)
     )
-    df_jobs['Job_Total'] = df_jobs['Job_Mat'] + df_jobs['Job_Lab'] + df_jobs['Job_Bur']
 
-    # Filter out empty/uncosted production runs (Completed Qty > 0 and Actual Spend > 0)
-    df_valid_jobs = df_jobs[(df_jobs['Completed Qty'] > 0) & (df_jobs['Job_Total'] > 0)].copy()
+    df_jobs['Job_Total'] = (
+        df_jobs['Job_Mat']
+        + df_jobs['Job_Sub']
+        + df_jobs['Job_Lab']
+        + df_jobs['Job_Bur']
+    )
 
-    # 3. AGGREGATE PER PART
-    part_jobs = df_valid_jobs.groupby(job_part_col).agg(
-        total_job_qty=('Completed Qty', 'sum'),
-        total_job_mat=('Job_Mat', 'sum'),
-        total_job_lab=('Job_Lab', 'sum'),
-        total_job_bur=('Job_Bur', 'sum')
-    ).reset_index()
+    # Filter out empty or uncosted job runs
+    df_valid_jobs = df_jobs[
+        (df_jobs['Completed Qty'] > 0)
+        & (df_jobs['Job_Total'] > 0)
+    ].copy()
 
-    part_inv = df_inv.groupby('Part').agg(
-        invoiced_qty=('Quantity', 'sum'),
-        total_revenue=('Customer Ext. Price', 'sum')
-    ).reset_index()
+    part_jobs = (
+        df_valid_jobs.groupby(job_part_col)
+        .agg(
+            total_job_qty=('Completed Qty', 'sum'),
+            total_job_mat=('Job_Mat', 'sum'),
+            total_job_sub=('Job_Sub', 'sum'),
+            total_job_lab=('Job_Lab', 'sum'),
+            total_job_bur=('Job_Bur', 'sum')
+        )
+        .reset_index()
+    )
 
-    parts_merged = pd.merge(part_inv, part_jobs, left_on='Part', right_on=job_part_col, how='inner')
+    # 3. MERGE PARTS AND CLASSIFICATIONS
+    part_inv = (
+        df_inv.groupby('Part')
+        .agg(
+            invoiced_qty=('Quantity', 'sum'),
+            total_revenue=('Customer Ext. Price', 'sum')
+        )
+        .reset_index()
+    )
 
-    meta = df[['Part', 'Description', 'ClassID', 'Group']].drop_duplicates(subset=['Part']).copy()
+    part_jobs[job_part_col] = part_jobs[job_part_col].astype(str).str.strip()
+
+    parts_merged = pd.merge(
+        part_inv,
+        part_jobs,
+        left_on='Part',
+        right_on=job_part_col,
+        how='inner'
+    )
+
+    meta = (
+        df[['Part', 'Description', 'ClassID', 'Group']]
+        .drop_duplicates(subset=['Part'])
+        .copy()
+    )
+    meta['Part'] = meta['Part'].astype(str).str.strip()
+
     parts_merged = pd.merge(parts_merged, meta, on='Part', how='left')
 
     def assign_group_key(row):
         cid = str(row.get('ClassID', '')).replace('.0', '').strip()
         grp = str(row.get('Group', '')).strip()
-        if cid and cid != 'nan':
+
+        if cid and cid.lower() != 'nan':
             return cid
-        if grp and grp != 'nan':
+        if grp and grp.lower() != 'nan':
             return grp
         return 'OTHER'
 
     parts_merged['GroupKey'] = parts_merged.apply(assign_group_key, axis=1)
 
     # 4. ROLL UP BY CLASS
-    grouped = parts_merged.groupby('GroupKey').agg(
-        display_name=('Description', 'first'),
-        invoiced_qty=('invoiced_qty', 'sum'),
-        total_revenue=('total_revenue', 'sum'),
-        job_qty=('total_job_qty', 'sum'),
-        total_mat=('total_job_mat', 'sum'),
-        total_lab=('total_job_lab', 'sum'),
-        total_bur=('total_job_bur', 'sum')
-    ).reset_index()
+    grouped = (
+        parts_merged.groupby('GroupKey')
+        .agg(
+            display_name=('Description', 'first'),
+            invoiced_qty=('invoiced_qty', 'sum'),
+            total_revenue=('total_revenue', 'sum'),
+            job_qty=('total_job_qty', 'sum'),
+            total_mat=('total_job_mat', 'sum'),
+            total_sub=('total_job_sub', 'sum'),
+            total_lab=('total_job_lab', 'sum'),
+            total_bur=('total_job_bur', 'sum')
+        )
+        .reset_index()
+    )
 
     metrics = {}
     for _, row in grouped.iterrows():
@@ -123,17 +186,18 @@ def get_data():
             continue
 
         price = round(float(row['total_revenue']) / inv_qty, 2)
-        unit_mat = round(float(row['total_mat']) / job_qty, 2)
+        unit_mat = round(float(row['total_mat'] + row['total_sub']) / job_qty, 2)
         unit_lab = round(float(row['total_lab']) / job_qty, 2)
         unit_bur = round(float(row['total_bur']) / job_qty, 2)
 
-        # Baseline engineering model components
         scrap_cost = round(unit_mat * 0.035, 2)
         rework_cost = round(unit_lab * 0.08, 2)
         warranty_cost = round((unit_mat + unit_lab + unit_bur) * 0.015, 2)
 
+        label_name = f"Class {row['GroupKey']} | {row['display_name']}"
+
         metrics[key] = {
-            "name": f"Class {row['GroupKey']} | {row['display_name']}",
+            "name": label_name,
             "price": price,
             "volume": int(inv_qty),
             "materials": unit_mat,
