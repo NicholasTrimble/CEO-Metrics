@@ -5,158 +5,146 @@ import os
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "data", "Query Test (1).xlsx")
+DATA_DIR = os.path.join(BASE_DIR, "data")
 
-# Executive clean names for your equipment classes 
-CLASS_NAMES = {
-    # Finished Systems & Units
-    "1300": "DWP Systems - EP Units",
-    "1301": "DWP VS Series Units",
-    "1305": "Systems Service & Field Work",
-    "1306": "Replacement Parts & Repair Units",
-    "1370": "DWP Systems - FV Units",
-    "1400": "Chilled Beam Systems",
-    "1500": "DWP Energy Recovery Wheels",
-    "1510": "DWP Wheel TE Units",
-    "1520": "DWP Wheel TS Units",
-    "1540": "DWP Wheel FV Units",
+def resolve_data_path():
+    preferred = os.path.join(DATA_DIR, "Query Test.xlsx")
+    if os.path.exists(preferred):
+        return preferred
+    if os.path.exists(DATA_DIR):
+        for fname in os.listdir(DATA_DIR):
+            if fname.endswith(".xlsx") and not fname.startswith("~$"):
+                return os.path.join(DATA_DIR, fname)
+    return preferred
 
-    # Manufactured Assemblies & Subcomponents
-    "4020": "Manufactured Parts (SP-700)",
-    "4040": "Manufactured Cabinet Assemblies",
-    "4050": "Manufactured Door Assemblies",
-    "4080": "Manufactured Electrical Cabinets",
-    "4100": "Manufactured FV Components",
-    "4110": "Manufactured Hood Assemblies",
-    "4120": "Manufactured Miscellaneous Parts",
-    "4140": "Manufactured Shafts",
-    "4160": "Manufactured Wheel Cassettes",
-    "4170": "Manufactured Wheels",
+@app.route("/api/data", methods=["GET"]) 
+def get_data():
+    file_path = resolve_data_path()
+    if not os.path.exists(file_path):
+        return jsonify({"error": f"File not found at {file_path}"}), 404
 
-    # Purchased Parts & Raw Components
-    "4200": "Purchased Adhesives & Sealants",
-    "4230": "Purchased Bearings",
-    "4250": "Purchased Drive Belts",
-    "4270": "Purchased Cabinet Components",
-    "4273": "Purchased Coils",
-    "4275": "Purchased Compressors",
-    "4277": "Purchased Dampers & Actuators",
-    "4280": "Purchased Doors & Hardware",
-    "4310": "Purchased Electrical (ELCAB)",
-    "4320": "Purchased Extrusions",
-    "4330": "Purchased Blower Fans",
-    "4340": "Purchased Air Filters",
-    "4390": "Purchased Hardware & Misc.",
-    "4400": "Purchased Electric Motors",
-    "4470": "Purchased Sheaves & Pulleys",
-    "4490": "Purchased Wheels & Rotors",
-
-    # Packaging & Special
-    "ZZPK": "Packing List & Shipped Loose Kits",
-    "ZZDR": "Specialty Door Units",
-    "ZZOB": "Obsolete Part Assemblies"
-}
-
-
-# 100% Real Audited Unit Costs from JobAsmbl Query Analysis 
-AUDITED_PRODUCT_COSTS = {
-    "1370": {"materials": 3798.36, "labor": 1118.18, "overhead": 1600.05, "scrap": 132.94, "rework": 89.45, "warranty": 97.75},
-    "1500": {"materials": 336.67, "labor": 84.93, "overhead": 102.38, "scrap": 11.78, "rework": 6.79, "warranty": 7.86},
-    "4160": {"materials": 153.66, "labor": 109.65, "overhead": 147.29, "scrap": 5.38, "rework": 8.77, "warranty": 6.16},
-    "ZZPK": {"materials": 40.08, "labor": 18.75, "overhead": 25.80, "scrap": 1.40, "rework": 1.50, "warranty": 1.27},
-    "4080": {"materials": 311.52, "labor": 34.68, "overhead": 37.53, "scrap": 10.90, "rework": 2.77, "warranty": 5.76},
-    "ZZDR": {"materials": 31.99, "labor": 11.05, "overhead": 15.04, "scrap": 1.12, "rework": 0.88, "warranty": 0.87},
-    "1400": {"materials": 2.48, "labor": 0.65, "overhead": 0.85, "scrap": 0.09, "rework": 0.05, "warranty": 0.06},
-    "4100": {"materials": 7.02, "labor": 2.92, "overhead": 4.08, "scrap": 0.25, "rework": 0.23, "warranty": 0.21},
-    "4490": {"materials": 5.01, "labor": 1.88, "overhead": 2.43, "scrap": 0.18, "rework": 0.15, "warranty": 0.14} }
-
-def process_raw_epicor_export():
-    if not os.path.exists(DATA_PATH):
-        # Fallback if sales query is not loaded yet
-        return {
-            "1370": {"name": "Energy Recovery Wheel Systems", "price": 8200.0, "volume": 238, "materials": 3798.36, "labor": 1118.18, "overhead": 1600.05, "scrap": 132.94, "rework": 89.45, "warranty": 97.75},
-            "1500": {"name": "Water Wash Air Systems", "price": 2850.0, "volume": 620, "materials": 336.67, "labor": 84.93, "overhead": 102.38, "scrap": 11.78, "rework": 6.79, "warranty": 7.86},
-            "4160": {"name": "Wheel Cassette and Hub Assemblies", "price": 650.0, "volume": 6878, "materials": 153.66, "labor": 109.65, "overhead": 147.29, "scrap": 5.38, "rework": 8.77, "warranty": 6.16}
-        }
-
-    df = pd.read_excel(DATA_PATH, sheet_name=0)
+    df = pd.read_excel(file_path, sheet_name=0)
     df.columns = [str(col).strip() for col in df.columns]
 
-    df["Quantity"] = pd.to_numeric(df.get("Quantity", 0), errors="coerce").fillna(0)
-    df["Customer Unit Price"] = pd.to_numeric(df.get("Customer Unit Price", 0), errors="coerce").fillna(0)
-    df["Customer Ext. Price"] = pd.to_numeric(df.get("Customer Ext. Price", 0), errors="coerce").fillna(0)
+    # 1. DEDUPLICATE INVOICED SALES
+    inv_cols = [
+        'Invoice', 'Part', 'Quantity', 
+        'Customer Unit Price', 'Customer Ext. Price', 
+        'ClassID', 'Group', 'Description'
+    ]
+    present_inv_cols = [c for c in inv_cols if c in df.columns]
+    df_inv = df[present_inv_cols].drop_duplicates()
 
-    mask_calc_ext = (df["Customer Ext. Price"] == 0) & (df["Quantity"] > 0) & (df["Customer Unit Price"] > 0)
-    df.loc[mask_calc_ext, "Customer Ext. Price"] = df["Quantity"] * df["Customer Unit Price"]
+    df_inv = df_inv[(df_inv['Quantity'] > 0) & (df_inv['Customer Ext. Price'] > 0)].copy()
+    df_inv['Quantity'] = pd.to_numeric(df_inv['Quantity'], errors='coerce').fillna(0)
+    df_inv['Customer Ext. Price'] = pd.to_numeric(df_inv['Customer Ext. Price'], errors='coerce').fillna(0)
 
-    active_df = df[(df["Quantity"] > 0) & (df["Customer Ext. Price"] > 0)].copy()
+    # 2. DEDUPLICATE JOBS & ELIMINATE ZERO-COST ANOMALIES
+    job_part_col = 'Part.1' if 'Part.1' in df.columns else 'Part'
+    job_cols = [
+        'Job', job_part_col, 'Completed Qty',
+        'This Level Actual Material Cost', 'Lower Level Actual Material Cost',
+        'This Level Actual Labor Cost', 'Lower Level Actual Labor Cost',
+        'This Level Actual Burden Cost', 'Lower Level Actual Burden Cost',
+        'This Level Actual Material Burden Cost'
+    ]
+    present_job_cols = [c for c in job_cols if c in df.columns]
+    df_jobs = df[present_job_cols].drop_duplicates(subset=['Job']).copy()
 
-    def determine_group(row):
-        cid = str(row.get("ClassID", "")).strip()
-        grp = str(row.get("Group", "")).strip()
-        if cid.endswith(".0"):
-            cid = cid[:-2]
-        if cid and cid != "nan" and cid != "":
+    for c in present_job_cols:
+        if c not in ['Job', job_part_col]:
+            df_jobs[c] = pd.to_numeric(df_jobs[c], errors='coerce').fillna(0)
+
+    df_jobs['Job_Mat'] = (
+        df_jobs.get('This Level Actual Material Cost', 0) +
+        df_jobs.get('Lower Level Actual Material Cost', 0) +
+        df_jobs.get('This Level Actual Material Burden Cost', 0)
+    )
+    df_jobs['Job_Lab'] = (
+        df_jobs.get('This Level Actual Labor Cost', 0) +
+        df_jobs.get('Lower Level Actual Labor Cost', 0)
+    )
+    df_jobs['Job_Bur'] = (
+        df_jobs.get('This Level Actual Burden Cost', 0) +
+        df_jobs.get('Lower Level Actual Burden Cost', 0)
+    )
+    df_jobs['Job_Total'] = df_jobs['Job_Mat'] + df_jobs['Job_Lab'] + df_jobs['Job_Bur']
+
+    # Filter out empty/uncosted production runs (Completed Qty > 0 and Actual Spend > 0)
+    df_valid_jobs = df_jobs[(df_jobs['Completed Qty'] > 0) & (df_jobs['Job_Total'] > 0)].copy()
+
+    # 3. AGGREGATE PER PART
+    part_jobs = df_valid_jobs.groupby(job_part_col).agg(
+        total_job_qty=('Completed Qty', 'sum'),
+        total_job_mat=('Job_Mat', 'sum'),
+        total_job_lab=('Job_Lab', 'sum'),
+        total_job_bur=('Job_Bur', 'sum')
+    ).reset_index()
+
+    part_inv = df_inv.groupby('Part').agg(
+        invoiced_qty=('Quantity', 'sum'),
+        total_revenue=('Customer Ext. Price', 'sum')
+    ).reset_index()
+
+    parts_merged = pd.merge(part_inv, part_jobs, left_on='Part', right_on=job_part_col, how='inner')
+
+    meta = df[['Part', 'Description', 'ClassID', 'Group']].drop_duplicates(subset=['Part']).copy()
+    parts_merged = pd.merge(parts_merged, meta, on='Part', how='left')
+
+    def assign_group_key(row):
+        cid = str(row.get('ClassID', '')).replace('.0', '').strip()
+        grp = str(row.get('Group', '')).strip()
+        if cid and cid != 'nan':
             return cid
-        if grp and grp != "nan" and grp != "":
+        if grp and grp != 'nan':
             return grp
-        part = str(row.get("Part", "")).strip()
-        return part[:4] if part else "OTHER"
+        return 'OTHER'
 
-    active_df["FamilyKey"] = active_df.apply(determine_group, axis=1)
+    parts_merged['GroupKey'] = parts_merged.apply(assign_group_key, axis=1)
 
-    aggregated = active_df.groupby("FamilyKey").agg(
-        total_qty=("Quantity", "sum"),
-        total_revenue=("Customer Ext. Price", "sum")
+    # 4. ROLL UP BY CLASS
+    grouped = parts_merged.groupby('GroupKey').agg(
+        display_name=('Description', 'first'),
+        invoiced_qty=('invoiced_qty', 'sum'),
+        total_revenue=('total_revenue', 'sum'),
+        job_qty=('total_job_qty', 'sum'),
+        total_mat=('total_job_mat', 'sum'),
+        total_lab=('total_job_lab', 'sum'),
+        total_bur=('total_job_bur', 'sum')
     ).reset_index()
 
     metrics = {}
-    for _, row in aggregated.iterrows():
-        raw_key = str(row["FamilyKey"])
-        key = raw_key.lower().replace(" ", "_")
-        qty = int(row["total_qty"])
-        rev = float(row["total_revenue"])
+    for _, row in grouped.iterrows():
+        key = str(row['GroupKey']).lower().replace(" ", "_")
+        inv_qty = float(row['invoiced_qty'])
+        job_qty = float(row['job_qty'])
 
-        if qty <= 0:
+        if inv_qty <= 0 or job_qty <= 0:
             continue
 
-        avg_price = round(rev / qty, 2)
-        if avg_price <= 0:
-            continue
+        price = round(float(row['total_revenue']) / inv_qty, 2)
+        unit_mat = round(float(row['total_mat']) / job_qty, 2)
+        unit_lab = round(float(row['total_lab']) / job_qty, 2)
+        unit_bur = round(float(row['total_bur']) / job_qty, 2)
 
-        # Use 100% Real Audited Job Costs if available
-        if raw_key in AUDITED_PRODUCT_COSTS:
-            c = AUDITED_PRODUCT_COSTS[raw_key]
-            mat_cost = c["materials"]
-            labor_cost = c["labor"]
-            burden_cost = c["overhead"]
-            scrap_cost = c["scrap"]
-            rework_cost = c["rework"]
-            warranty_cost = c["warranty"]
-        else:
-            # Fallback benchmark
-            mat_cost = round(avg_price * 0.48, 2)
-            labor_cost = round(avg_price * 0.18, 2)
-            burden_cost = round(avg_price * 0.08, 2)
-            scrap_cost = round(mat_cost * 0.035, 2)
-            rework_cost = round(labor_cost * 0.08, 2)
-            warranty_cost = round(avg_price * 0.012, 2)
-
-        display_name = CLASS_NAMES.get(raw_key, f"Equipment Group {raw_key}")
+        # Baseline engineering model components
+        scrap_cost = round(unit_mat * 0.035, 2)
+        rework_cost = round(unit_lab * 0.08, 2)
+        warranty_cost = round((unit_mat + unit_lab + unit_bur) * 0.015, 2)
 
         metrics[key] = {
-            "name": display_name,
-            "price": avg_price,
-            "volume": qty,
-            "materials": mat_cost,
-            "labor": labor_cost,
-            "overhead": burden_cost,
+            "name": f"Class {row['GroupKey']} | {row['display_name']}",
+            "price": price,
+            "volume": int(inv_qty),
+            "materials": unit_mat,
+            "labor": unit_lab,
+            "overhead": unit_bur,
             "scrap": scrap_cost,
             "rework": rework_cost,
             "warranty": warranty_cost
         }
 
-    return metrics
+    return jsonify(metrics)
 
 @app.after_request
 def allow_mevisio_iframe(response):
@@ -167,10 +155,6 @@ def allow_mevisio_iframe(response):
 @app.route("/")
 def index():
     return render_template("index.html")
-
-@app.route("/api/data", methods=["GET"]) 
-def get_data():
-    return jsonify(process_raw_epicor_export())
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
